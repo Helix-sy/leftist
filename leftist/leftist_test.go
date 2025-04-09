@@ -1,9 +1,10 @@
 package leftist
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"gitlab.lrz.de/hm/goal-core/collections"
-	"testing"
 )
 
 func TestCreation(t *testing.T) {
@@ -86,4 +87,131 @@ func Test_DecreaseKey(t *testing.T) {
 	assert.Equal(t, "U", e)
 	assert.Equal(t, 22, x)
 	assert.Equal(t, uint(4), pq.Size())
+}
+
+func TestRemoveRootWithEmptyChildren(t *testing.T) {
+	pq := NewLeftistHeap[string, int]()
+	h := pq.Insert("A", 10)
+
+	// Remove the only node in the heap
+	pq.Remove(h)
+	assert.True(t, pq.IsEmpty())
+	assert.Equal(t, uint(0), pq.Size())
+}
+
+func TestComplexRemoveInternal(t *testing.T) {
+	pq := NewLeftistHeap[string, int]()
+
+	// Create a more complex tree structure
+	pq.Insert("A", 10)
+	h2 := pq.Insert("B", 20)
+	pq.Insert("C", 15)
+	pq.Insert("D", 25)
+	pq.Insert("E", 30)
+
+	// Remove an internal node
+	pq.Remove(h2)
+
+	// Check that structure is maintained correctly
+	assert.Equal(t, uint(4), pq.Size())
+
+	// Extract all and verify order
+	values := make([]string, 0, 4)
+	keys := make([]int, 0, 4)
+
+	for !pq.IsEmpty() {
+		e, k := pq.ExtractMin()
+		values = append(values, e)
+		keys = append(keys, k)
+	}
+
+	// Check expected order based on keys
+	assert.Equal(t, []string{"A", "C", "D", "E"}, values)
+	assert.Equal(t, []int{10, 15, 25, 30}, keys)
+}
+
+func TestMergeSymmetry(t *testing.T) {
+	// Test that merge(a, b) and merge(b, a) produce equivalent heaps
+	pq1 := NewLeftistHeap[string, int]()
+	pq2 := NewLeftistHeap[string, int]()
+
+	// Create two heaps
+	pq1.Insert("A", 10)
+	pq1.Insert("B", 30)
+
+	pq2.Insert("C", 20)
+	pq2.Insert("D", 40)
+
+	// Get their roots
+	root1 := pq1.min
+	root2 := pq2.min
+
+	// Merge root1 with root2
+	merged := root1.merge(root2)
+
+	// Check that merged heap has correct elements
+	// Extract all elements and check
+	values := []string{}
+	keys := []int{}
+
+	for merged != nil {
+		values = append(values, merged.element)
+		keys = append(keys, merged.key)
+
+		// Remove current min
+		merged = merged.left.merge(merged.right)
+	}
+
+	// Verify expected order
+	assert.Equal(t, []int{10, 20, 30, 40}, keys)
+}
+
+func TestEmptyInitialMerge(t *testing.T) {
+	// Test initializing a heap through merges of empty heaps
+	var emptyNode *leftistNode[string, int]
+
+	// Merge empty with empty should be empty
+	merged := emptyNode.merge(nil)
+	assert.Nil(t, merged)
+
+	// Create a node
+	newNode := &leftistNode[string, int]{
+		element: "A",
+		key:     10,
+		dist:    1,
+	}
+
+	// Merge empty with node
+	merged = emptyNode.merge(newNode)
+	assert.Equal(t, newNode, merged)
+
+	// Merge node with empty
+	merged = newNode.merge(nil)
+	assert.Equal(t, newNode, merged)
+}
+
+func TestRemoveNonRoot(t *testing.T) {
+	pq := NewLeftistHeap[string, int]()
+
+	// Create a heap with several elements
+	pq.Insert("A", 10)
+	h2 := pq.Insert("B", 20)
+	pq.Insert("C", 30)
+	pq.Insert("D", 40)
+
+	// Remove a non-root element
+	pq.Remove(h2)
+
+	// Extract all elements and verify order
+	values := []string{}
+	keys := []int{}
+
+	for !pq.IsEmpty() {
+		e, k := pq.ExtractMin()
+		values = append(values, e)
+		keys = append(keys, k)
+	}
+
+	assert.Equal(t, []string{"A", "C", "D"}, values)
+	assert.Equal(t, []int{10, 30, 40}, keys)
 }
